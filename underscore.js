@@ -957,14 +957,18 @@
 
   // Retrieve the names of an object's properties.
   // Delegates to **ECMAScript 5**'s native `Object.keys`
+  // ES5 的 keys，对不支持的浏览器用自己的方式实现 
   _.keys = nativeKeys || function(obj) {
+    // 判断是不是 Object 实例化或者继承自 Object 的对象
     if (obj !== Object(obj)) throw new TypeError('Invalid object');
     var keys = [];
+    // for ... in ... 读取 key
     for (var key in obj) if (_.has(obj, key)) keys[keys.length] = key;
     return keys;
   };
 
   // Retrieve the values of an object's properties.
+  // 读取 obj 的 values，放到一个数组里
   _.values = function(obj) {
     var values = [];
     for (var key in obj) if (_.has(obj, key)) values.push(obj[key]);
@@ -972,6 +976,7 @@
   };
 
   // Convert an object into a list of `[key, value]` pairs.
+  // 把 obj 转换成 [ [ Key, Value], [ Key, Value ] ... ] 的格式
   _.pairs = function(obj) {
     var pairs = [];
     for (var key in obj) if (_.has(obj, key)) pairs.push([key, obj[key]]);
@@ -979,6 +984,7 @@
   };
 
   // Invert the keys and values of an object. The values must be serializable.
+  // 创建一个新对象，把 obj 的属性和值对换存到新对象里
   _.invert = function(obj) {
     var result = {};
     for (var key in obj) if (_.has(obj, key)) result[obj[key]] = key;
@@ -999,7 +1005,10 @@
   };
 
   // Extend a given object with all the properties in passed-in object(s).
+  // 扩展一个对象 ( 没有深度拷贝 )
   _.extend = function(obj) {
+    // slice.call( arguments, 1 ) 把参数从第2个到最后一个整合为一个数组
+    // 用 each 为每个 obj 都赋值..
     each(slice.call(arguments, 1), function(source) {
       if (source) {
         for (var prop in source) {
@@ -1011,6 +1020,7 @@
   };
 
   // Return a copy of the object only containing the whitelisted properties.
+  // 根据传进的参数返回一个新 object..
   _.pick = function(obj) {
     var copy = {};
     var keys = concat.apply(ArrayProto, slice.call(arguments, 1));
@@ -1021,8 +1031,10 @@
   };
 
    // Return a copy of the object without the blacklisted properties.
+   // 跟 pick 相反，返回一个不包含传进的参数的对象
   _.omit = function(obj) {
     var copy = {};
+    // 把传进的数组连接
     var keys = concat.apply(ArrayProto, slice.call(arguments, 1));
     for (var key in obj) {
       if (!_.contains(keys, key)) copy[key] = obj[key];
@@ -1031,6 +1043,8 @@
   };
 
   // Fill in a given object with default properties.
+  // 跟 extend 差不多，但是假如原 obj 已经有相应的属性， extend 
+  // 会覆盖属性， defaults 不会覆盖，就像名字那样，这个方法是用来设置默认值的
   _.defaults = function(obj) {
     each(slice.call(arguments, 1), function(source) {
       if (source) {
@@ -1043,6 +1057,7 @@
   };
 
   // Create a (shallow-cloned) duplicate of an object.
+  // 浅拷贝对象
   _.clone = function(obj) {
     if (!_.isObject(obj)) return obj;
     return _.isArray(obj) ? obj.slice() : _.extend({}, obj);
@@ -1051,47 +1066,69 @@
   // Invokes interceptor with the obj, and then returns obj.
   // The primary purpose of this method is to "tap into" a method chain, in
   // order to perform operations on intermediate results within the chain.
+  // 为了在 chain 方法中向两个连写函数中间插入函数， underscorejs.org 的例子
+  // _.chain([1,2,3,200])
+  //  .filter(function(num) { return num % 2 == 0; })
+  //  .tap(alert)
+  //  .map(function(num) { return num * num })
+  //  .value();
+  // => // [2, 200] (alerted)
+  // => [4, 40000]
   _.tap = function(obj, interceptor) {
     interceptor(obj);
     return obj;
   };
 
   // Internal recursive comparison function for `isEqual`.
+  // 判断是否相等
   var eq = function(a, b, aStack, bStack) {
     // Identical objects are equal. `0 === -0`, but they aren't identical.
     // See the Harmony `egal` proposal: http://wiki.ecmascript.org/doku.php?id=harmony:egal.
+    // 0 === -0，这都能找到.... 
+    // 1 / 0 != 1 / -0 ....
+    // 这句主要是判断 a === b，如果是 0，再做 1 / a == 1 / b 判断 0 和 -0 这种情况
     if (a === b) return a !== 0 || 1 / a == 1 / b;
     // A strict comparison is necessary because `null == undefined`.
+    // 判断 null 和 undefined
     if (a == null || b == null) return a === b;
     // Unwrap any wrapped objects.
+    // 判断是不是 underscore 类型的对象
     if (a instanceof _) a = a._wrapped;
     if (b instanceof _) b = b._wrapped;
     // Compare `[[Class]]` names.
+    // 用 toString 判断类型，如果类型不一样，直接返回 false
     var className = toString.call(a);
     if (className != toString.call(b)) return false;
+    // 根据 className 分情况判断
     switch (className) {
       // Strings, numbers, dates, and booleans are compared by value.
       case '[object String]':
         // Primitives and their corresponding object wrappers are equivalent; thus, `"5"` is
         // equivalent to `new String("5")`.
+        // 如果 a 是 String 类型，把 b 转换为 String 再做判断
         return a == String(b);
       case '[object Number]':
         // `NaN`s are equivalent, but non-reflexive. An `egal` comparison is performed for
         // other numeric values.
+        // 依次判断 NaN, 0 和 -0，正常数字
         return a != +a ? b != +b : (a == 0 ? 1 / a == 1 / b : a == +b);
       case '[object Date]':
       case '[object Boolean]':
         // Coerce dates and booleans to numeric primitive values. Dates are compared by their
         // millisecond representations. Note that invalid dates with millisecond representations
         // of `NaN` are not equivalent.
+        // Date 和 Boolean 转换成 Number 进行判断
         return +a == +b;
       // RegExps are compared by their source patterns and flags.
       case '[object RegExp]':
+        // 正则判断源码和三个属性
         return a.source == b.source &&
                a.global == b.global &&
                a.multiline == b.multiline &&
                a.ignoreCase == b.ignoreCase;
     }
+    // 基本类型都判断完了，还剩 Array, Object, Function..
+    // 用 typeof 把 function 剔除掉
     if (typeof a != 'object' || typeof b != 'object') return false;
     // Assume equality for cyclic structures. The algorithm for detecting cyclic
     // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
@@ -1099,32 +1136,41 @@
     while (length--) {
       // Linear search. Performance is inversely proportional to the number of
       // unique nested structures.
+      // 用于判断类数组中 a 的下标在 bStack 中是否与 b 相等
+      // aStack = [ 1, 3, 4 ], bStack = [ 2, 4, 5] 如果 a = 3, b = 4， 会返回 true
       if (aStack[length] == a) return bStack[length] == b;
     }
     // Add the first object to the stack of traversed objects.
+    // 如果在 aStack 中没找到 a，把 a,b 分别 push 进栈
     aStack.push(a);
     bStack.push(b);
     var size = 0, result = true;
     // Recursively compare objects and arrays.
+    // 如果是 Array
     if (className == '[object Array]') {
       // Compare array lengths to determine if a deep comparison is necessary.
+      // 先判断 a 和 b的长度是否相等
       size = a.length;
       result = size == b.length;
       if (result) {
         // Deep compare the contents, ignoring non-numeric properties.
+        // 通过递归深度判断 Array 的每一个值
         while (size--) {
           if (!(result = eq(a[size], b[size], aStack, bStack))) break;
         }
       }
+    // 只剩 obj 没判断了，貌似
     } else {
       // Objects with different constructors are not equivalent, but `Object`s
       // from different frames are.
+      // 先判断构造器类型，如果构造器类型不一样，就返回 false
       var aCtor = a.constructor, bCtor = b.constructor;
       if (aCtor !== bCtor && !(_.isFunction(aCtor) && (aCtor instanceof aCtor) &&
                                _.isFunction(bCtor) && (bCtor instanceof bCtor))) {
         return false;
       }
       // Deep compare objects.
+      // 递归判断每一个 own 属性
       for (var key in a) {
         if (_.has(a, key)) {
           // Count the expected number of properties.
@@ -1134,10 +1180,13 @@
         }
       }
       // Ensure that both objects contain the same number of properties.
+      // 判断是不是所有属性都判断完了
       if (result) {
         for (key in b) {
           if (_.has(b, key) && !(size--)) break;
         }
+        // 如果所有属性都相等， size 应该是 0
+        // result 为 true
         result = !size;
       }
     }
@@ -1148,36 +1197,45 @@
   };
 
   // Perform a deep comparison to check if two objects are equal.
+  // 深度判断两个元素是否相等
   _.isEqual = function(a, b) {
     return eq(a, b, [], []);
   };
 
   // Is a given array, string, or object empty?
   // An "empty" object has no enumerable own-properties.
+  // 判断一个元素是否是空的
   _.isEmpty = function(obj) {
     if (obj == null) return true;
+    // 先判断 Array 和 String
     if (_.isArray(obj) || _.isString(obj)) return obj.length === 0;
+    // 如果 obj 有 own 的属性，就返回 false
     for (var key in obj) if (_.has(obj, key)) return false;
     return true;
   };
 
   // Is a given value a DOM element?
+  // 用 nodeType 判断是不是 HTMLElement
   _.isElement = function(obj) {
     return !!(obj && obj.nodeType === 1);
   };
 
   // Is a given value an array?
   // Delegates to ECMA5's native Array.isArray
+  // 判断是不是 Array
   _.isArray = nativeIsArray || function(obj) {
     return toString.call(obj) == '[object Array]';
   };
 
   // Is a given variable an object?
+  // 判断是不是由 Object 派生的对象，
+  // 除了 5 种基本类型，其它都属于 Object 派生的，包括 Function,Object,Array,Date.....
   _.isObject = function(obj) {
     return obj === Object(obj);
   };
 
   // Add some isType methods: isArguments, isFunction, isString, isNumber, isDate, isRegExp.
+  // 利用 Object.prototype.toString 判断下面这些类型，把相应的方法添加到 '_' 里
   each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp'], function(name) {
     _['is' + name] = function(obj) {
       return toString.call(obj) == '[object ' + name + ']';
@@ -1186,6 +1244,8 @@
 
   // Define a fallback version of the method in browsers (ahem, IE), where
   // there isn't any inspectable "Arguments" type.
+  // 据原注释说 IE, ahem 中没有 [object Arguments] 类型，只能通过  callee 属性判断是不是
+  // arguments 对象
   if (!_.isArguments(arguments)) {
     _.isArguments = function(obj) {
       return !!(obj && _.has(obj, 'callee'));
@@ -1193,6 +1253,7 @@
   }
 
   // Optimize `isFunction` if appropriate.
+  // 好像有的浏览器中 typeof /./ === 'function' 结果是 true ...
   if (typeof (/./) !== 'function') {
     _.isFunction = function(obj) {
       return typeof obj === 'function';
@@ -1200,26 +1261,31 @@
   }
 
   // Is a given object a finite number?
+  // 是不是有上限的数字
   _.isFinite = function(obj) {
     return isFinite(obj) && !isNaN(parseFloat(obj));
   };
 
   // Is the given value `NaN`? (NaN is the only number which does not equal itself).
+  // 判断是不是 NaN， NaN === NaN 结果是 false
   _.isNaN = function(obj) {
     return _.isNumber(obj) && obj != +obj;
   };
 
   // Is a given value a boolean?
+  // 判断是不是 Boolean 类型
   _.isBoolean = function(obj) {
     return obj === true || obj === false || toString.call(obj) == '[object Boolean]';
   };
 
   // Is a given value equal to null?
+  // 是不是 Null
   _.isNull = function(obj) {
     return obj === null;
   };
 
   // Is a given variable undefined?
+  // 是不是 undefined
   _.isUndefined = function(obj) {
     return obj === void 0;
   };
@@ -1236,17 +1302,20 @@
 
   // Run Underscore.js in *noConflict* mode, returning the `_` variable to its
   // previous owner. Returns a reference to the Underscore object.
+  // 把 _ 还原成原来的值
   _.noConflict = function() {
     root._ = previousUnderscore;
     return this;
   };
 
   // Keep the identity function around for default iterators.
+  // 没有什么意思，为了某些方法必须要传一个 function, so..
   _.identity = function(value) {
     return value;
   };
 
   // Run a function **n** times.
+  // 执行 n 次 iterator，把结果保存在 accum 中
   _.times = function(n, iterator, context) {
     var accum = Array(n);
     for (var i = 0; i < n; i++) accum[i] = iterator.call(context, i);
@@ -1256,7 +1325,7 @@
   // Return a random integer between min and max (inclusive).
   // 包装下 Math.random 方法，原生的比较难用
   _.random = function(min, max) {
-    // 先判断 max 是不是无效值
+    // 先判断 max 是不是没定义的值
     if (max == null) {
       max = min;
       min = 0;
@@ -1266,6 +1335,7 @@
 
   // List of HTML entities for escaping.
   var entityMap = {
+    // HTML 转义的 HashMap
     escape: {
       '&': '&amp;',
       '<': '&lt;',
@@ -1275,18 +1345,22 @@
       '/': '&#x2F;'
     }
   };
+  // 把 escape 的属性和值对换
   entityMap.unescape = _.invert(entityMap.escape);
 
   // Regexes containing the keys and values listed immediately above.
+  // 创建相关的正则
   var entityRegexes = {
     escape:   new RegExp('[' + _.keys(entityMap.escape).join('') + ']', 'g'),
     unescape: new RegExp('(' + _.keys(entityMap.unescape).join('|') + ')', 'g')
   };
 
   // Functions for escaping and unescaping strings to/from HTML interpolation.
+  // 添加 escape 和 unescape 方法
   _.each(['escape', 'unescape'], function(method) {
     _[method] = function(string) {
       if (string == null) return '';
+      // 通过正则替换文本内容
       return ('' + string).replace(entityRegexes[method], function(match) {
         return entityMap[method][match];
       });
@@ -1295,6 +1369,7 @@
 
   // If the value of the named property is a function then invoke it;
   // otherwise, return it.
+  // 如果是 funcion 就执行，否则直接返回
   _.result = function(object, property) {
     if (object == null) return null;
     var value = object[property];
@@ -1302,6 +1377,7 @@
   };
 
   // Add your own custom functions to the Underscore object.
+  // 向 underscore 的原型中添加自定义方法
   _.mixin = function(obj) {
     each(_.functions(obj), function(name){
       var func = _[name] = obj[name];
@@ -1315,6 +1391,7 @@
 
   // Generate a unique integer id (unique within the entire client session).
   // Useful for temporary DOM ids.
+  // 定义不同的 id, 用闭包保存一个 id，再通过相加保证每个 id 都不一样
   var idCounter = 0;
   _.uniqueId = function(prefix) {
     var id = ++idCounter + '';
@@ -1323,6 +1400,7 @@
 
   // By default, Underscore uses ERB-style template delimiters, change the
   // following template settings to use alternative delimiters.
+  // ...模板的相关正则，用于匹配出 <% %> 中的代码 
   _.templateSettings = {
     evaluate    : /<%([\s\S]+?)%>/g,
     interpolate : /<%=([\s\S]+?)%>/g,
@@ -1332,10 +1410,12 @@
   // When customizing `templateSettings`, if you don't want to define an
   // interpolation, evaluation or escaping regex, we need one that is
   // guaranteed not to match.
+  // 这个正则什么都不会匹配
   var noMatch = /(.)^/;
 
   // Certain characters need to be escaped so that they can be put into a
   // string literal.
+  // 一些空白字符和'的转义 HashMap
   var escapes = {
     "'":      "'",
     '\\':     '\\',
@@ -1346,11 +1426,13 @@
     '\u2029': 'u2029'
   };
 
+  // 上面的正则。。
   var escaper = /\\|'|\r|\n|\t|\u2028|\u2029/g;
 
   // JavaScript micro-templating, similar to John Resig's implementation.
   // Underscore templating handles arbitrary delimiters, preserves whitespace,
   // and correctly escapes quotes within interpolated code.
+  // 模板函数
   _.template = function(text, data, settings) {
     var render;
     settings = _.defaults({}, settings, _.templateSettings);
@@ -1449,12 +1531,14 @@
   _.extend(_.prototype, {
 
     // Start chaining a wrapped Underscore object.
+    // 用于连续调用
     chain: function() {
       this._chain = true;
       return this;
     },
 
     // Extracts the result from a wrapped and chained object.
+    // 返回 underscore 对象所包含的对象，类似  jQuery 对象和 dom 元素的关系
     value: function() {
       return this._wrapped;
     }
