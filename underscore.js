@@ -1435,9 +1435,11 @@
   // 模板函数
   _.template = function(text, data, settings) {
     var render;
+    // 模板设置，创建一个新 object 把 settings 放进去并把默认设置也放进去..
     settings = _.defaults({}, settings, _.templateSettings);
 
     // Combine delimiters into one regular expression via alternation.
+    // 把正则整合到一起
     var matcher = new RegExp([
       (settings.escape || noMatch).source,
       (settings.interpolate || noMatch).source,
@@ -1447,16 +1449,24 @@
     // Compile the template source, escaping string literals appropriately.
     var index = 0;
     var source = "__p+='";
+    // 因为 matcher 有三个号括，所以匹配的结果依此为  表达式匹配值，子表达式 escape，
+    // 子表达式 interpolate，子表达式 evaluate，和 表达式的起始位置
+    // 经过这个正则后， source 会处理为一段可执行的代码。
     text.replace(matcher, function(match, escape, interpolate, evaluate, offset) {
+      // 把上次匹配结束字符(下标为 index ) 到本次匹配开始字符 ( 下标 offset) 中间的
+      // 空白字符转义，并放到 source 中
       source += text.slice(index, offset)
         .replace(escaper, function(match) { return '\\' + escapes[match]; });
 
+      // 处理 <%- ... -%> 中间的字符，放到 escape 中
       if (escape) {
         source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
       }
+      // 处理 <%= ... %> 中间的字符，放到 escape 中
       if (interpolate) {
         source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
       }
+      // 处理 <% ... %> 中间的字符，放到 escape 中
       if (evaluate) {
         source += "';\n" + evaluate + "\n__p+='";
       }
@@ -1466,20 +1476,25 @@
     source += "';\n";
 
     // If a variable is not specified, place data values in local scope.
+    // 判断是不是需要用到 with 语句
     if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
 
+    // 继续处理 source，添加 print 方法
     source = "var __t,__p='',__j=Array.prototype.join," +
       "print=function(){__p+=__j.call(arguments,'');};\n" +
       source + "return __p;\n";
 
     try {
+      // new 一个函数，函数内容是之前拼接好的字符串
       render = new Function(settings.variable || 'obj', '_', source);
     } catch (e) {
       e.source = source;
       throw e;
     }
 
+    // 给 new 出来的函数传值，返回数据
     if (data) return render(data, _);
+    // 如果没传 data，则把这个函数保存起来做为返回值返回.
     var template = function(data) {
       return render.call(this, data, _);
     };
@@ -1491,6 +1506,7 @@
   };
 
   // Add a "chain" function, which will delegate to the wrapper.
+  // 通过 _.chain() 包装的对象能够像 jQuery 那样的方式连写
   _.chain = function(obj) {
     return _(obj).chain();
   };
@@ -1502,14 +1518,17 @@
   // underscore functions. Wrapped objects may be chained.
 
   // Helper function to continue chaining intermediate results.
+  // 如果支持链接操作返回 underscore 对象，不支持则返回被包装的对象   
   var result = function(obj) {
     return this._chain ? _(obj).chain() : obj;
   };
 
   // Add all of the Underscore functions to the wrapper object.
+  // 把_.* 放到 _.prototype 里，以便能够通过构造函数创建 underscore 对象
   _.mixin(_);
 
   // Add all mutator Array functions to the wrapper.
+  // 把数组的一些方法添加到被包装的对象中  _wrapped 指的是通过 _( obj ) 方式传进的对象
   each(['pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift'], function(name) {
     var method = ArrayProto[name];
     _.prototype[name] = function() {
@@ -1521,6 +1540,7 @@
   });
 
   // Add all accessor Array functions to the wrapper.
+  // 作用同上，只不过这些方法会返回一个新的 obj
   each(['concat', 'join', 'slice'], function(name) {
     var method = ArrayProto[name];
     _.prototype[name] = function() {
@@ -1531,7 +1551,7 @@
   _.extend(_.prototype, {
 
     // Start chaining a wrapped Underscore object.
-    // 用于连续调用
+    // 用于连续调用，设置 _chain 为 true，表示当前对象支持链式操作
     chain: function() {
       this._chain = true;
       return this;
