@@ -111,6 +111,8 @@
         // });
         // 用上面那种方式返回 breaker，在这里会判断返回值是不是 === breaker
         // 如果相等就跳出循环，下面会有很多方法用到这个。
+        // 这个地方可能有 bug，因为原生的 forEach 没有设置 breaker，可能
+        // 造成结果不一样
         if (iterator.call(context, obj[i], i, obj) === breaker) return;
       }
     // 没有 length 属性，则为每一个私有属性都执行一遍 iterator..
